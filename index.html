@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频播放量榜单</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        accent: '#6366F1',
+                        neutral: '#1F2937',
+                        'neutral-light': '#F3F4F6',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .scrollbar-thin {
+                scrollbar-width: thin;
+            }
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .card-shadow {
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            }
+            .hover-lift {
+                transition: transform 0.2s, box-shadow 0.2s;
+            }
+            .hover-lift:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+    <header class="bg-gradient-to-r from-primary to-accent text-white shadow-lg">
+        <div class="container mx-auto px-4 py-6">
+            <h1 class="text-[clamp(1.8rem,4vw,2.5rem)] font-bold text-center">视频播放量榜单</h1>
+            <p class="text-center text-white/90 mt-2">聚合多平台视频数据，展示热门内容</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- 搜索区 -->
+        <section id="search-section" class="mb-8 bg-white rounded-xl p-6 card-shadow">
+            <div class="flex flex-col md:flex-row gap-4 items-center">
+                <div class="flex-grow w-full">
+                    <label for="keyword" class="block text-sm font-medium text-gray-700 mb-1">搜索关键词</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                            <i class="fa fa-search"></i>
+                        </span>
+                        <input
+                            id="keyword"
+                            type="text"
+                            placeholder="输入关键词搜索视频..."
+                            class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all"
+                            autocomplete="off"
+                        >
+                    </div>
+                </div>
+                <div class="flex-shrink-0 w-full md:w-auto">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">选择平台</label>
+                    <div class="flex flex-wrap gap-2">
+                    <label class="flex items-center space-x-2 bg-neutral-light rounded-lg px-3 py-3 cursor-pointer hover:bg-gray-200 transition-colors">
+                        <input type="checkbox" id="platform-bilibili" value="bilibili" class="rounded text-primary focus:ring-primary" checked>
+                        <span class="font-medium"><i class="fa fa-play-circle mr-1"></i> B站</span>
+                    </label>
+                    <label class="flex items-center space-x-2 bg-neutral-light rounded-lg px-3 py-3 cursor-pointer hover:bg-gray-200 transition-colors">
+                        <input type="checkbox" id="platform-youtube" value="youtube" class="rounded text-primary focus:ring-primary">
+                        <span class="font-medium"><i class="fa fa-youtube-play mr-1"></i> YouTube</span>
+                    </label>
+                    <label class="flex items-center space-x-2 bg-neutral-light rounded-lg px-3 py-3 cursor-pointer hover:bg-gray-200 transition-colors">
+                        <input type="checkbox" id="image-merge" value="image-merge" class="rounded text-primary focus:ring-primary">
+                        <span class="font-medium"><i class="fa fa-picture-o mr-1"></i> 使用缩略图匹配</span>
+                    </label>
+                </div>
+                </div>
+                <div class="flex-shrink-0 w-full md:w-auto pt-1">
+                    <button
+                        id="search-btn"
+                        class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-3 px-6 rounded-lg transition-all flex items-center justify-center gap-2 hover-lift"
+                        onclick="performSearch()"
+                    >
+                        <i class="fa fa-search"></i>
+                        <span>开始搜索</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 状态显示区 -->
+        <section id="status-section" class="mb-8 hidden">
+            <div class="bg-white rounded-xl p-6 card-shadow">
+                <h2 class="text-xl font-semibold mb-4">搜索进度</h2>
+                <div class="mb-3">
+                    <div class="flex justify-between text-sm text-gray-600 mb-1">
+                        <span>正在爬取数据...</span>
+                        <span id="progress-percentage">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div id="progress-bar" class="bg-secondary h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div id="status-message" class="text-gray-700"></div>
+                <div id="error-messages" class="mt-4 hidden">
+                    <div class="text-red-600 font-medium mb-2">错误信息：</div>
+                    <ul id="error-list" class="list-disc list-inside text-red-500"></ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- 榜单区 -->
+        <section id="ranking-section" class="mb-8 hidden">
+            <div class="bg-white rounded-xl p-6 card-shadow">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-semibold">视频播放量榜单</h2>
+                    <div class="flex gap-2">
+                        <select id="sort-select" class="border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none" onchange="sortTable()">
+                            <option value="total">按总播放量排序</option>
+                            <option value="bilibili">按B站播放量排序</option>
+                            <option value="youtube">按YouTube播放量排序</option>
+                        </select>
+                        <button id="refresh-btn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-1.5 px-4 rounded-lg transition-all flex items-center gap-1" onclick="performSearch()">
+                            <i class="fa fa-refresh"></i>
+                            <span>刷新</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto scrollbar-thin">
+                    <table id="ranking-table" class="w-full min-w-[800px]">
+                        <thead>
+                            <tr class="bg-gray-50 border-b border-gray-200">
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-12">排名</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-40">平台链接</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700 max-w-[300px]">视频标题</th>
+                                <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700 w-32">B站播放量</th>
+                                <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700 w-40">YouTube播放量</th>
+                                <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700 w-32">总播放量</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ranking-body">
+                            <!-- 榜单内容将通过JavaScript动态填充 -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="no-results" class="py-12 text-center hidden">
+                    <div class="text-gray-400 text-6xl mb-3"><i class="fa fa-film"></i></div>
+                    <p class="text-gray-500">未找到相关视频数据</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 加载动画 -->
+        <div id="loading-overlay" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-lg p-6 max-w-md w-full flex flex-col items-center">
+                <div class="w-16 h-16 border-4 border-gray-200 border-t-primary rounded-full animate-spin mb-4"></div>
+                <p class="text-gray-700 font-medium" id="loading-text">正在处理数据...</p>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-neutral text-white py-6">
+        <div class="container mx-auto px-4">
+            <div class="text-center">
+                <p class="text-gray-400">视频播放量榜单网站 &copy; 2024</p>
+                <p class="text-gray-500 text-sm mt-1">数据来源于B站和YouTube，仅供参考</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        let currentTaskId = null;
+        let currentResults = [];
+        let statusCheckInterval = null;
+
+        // 执行搜索
+        function performSearch() {
+            const keyword = document.getElementById('keyword').value.trim();
+            if (!keyword) {
+                alert('请输入搜索关键词');
+                return;
+            }
+
+            // 获取选中的平台
+            const platforms = [];
+            if (document.getElementById('platform-bilibili').checked) {
+                platforms.push('bilibili');
+            }
+            if (document.getElementById('platform-youtube').checked) {
+                platforms.push('youtube');
+            }
+
+            if (platforms.length === 0) {
+                alert('请至少选择一个平台');
+                return;
+            }
+
+            // 重置UI
+            document.getElementById('ranking-section').classList.add('hidden');
+            document.getElementById('status-section').classList.remove('hidden');
+            document.getElementById('progress-bar').style.width = '0%';
+            document.getElementById('progress-percentage').textContent = '0%';
+            document.getElementById('status-message').textContent = '正在创建搜索任务...';
+            document.getElementById('error-messages').classList.add('hidden');
+            document.getElementById('error-list').innerHTML = '';
+
+            // 发送搜索请求
+            fetch('/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    keyword: keyword,
+                    platforms: platforms,
+                    image_merge: document.getElementById('image-merge').checked
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                currentTaskId = data.task_id;
+                document.getElementById('status-message').textContent = `任务已创建，正在爬取数据 (任务ID: ${currentTaskId})`;
+                
+                // 开始轮询任务状态
+                checkTaskStatus();
+            })
+            .catch(error => {
+                showError('搜索请求失败，请稍后重试');
+            });
+        }
+
+        // 检查任务状态
+        function checkTaskStatus() {
+            if (!currentTaskId) return;
+
+            // 清除之前的定时器
+            if (statusCheckInterval) {
+                clearInterval(statusCheckInterval);
+            }
+
+            // 设置新的定时器
+            statusCheckInterval = setInterval(() => {
+                fetch(`/task/${currentTaskId}`)
+                    .then(response => response.json())
+                    .then(task => {
+                        if (task.error) {
+                            showError(task.error);
+                            clearInterval(statusCheckInterval);
+                            return;
+                        }
+
+                        // 更新进度
+                        if (task.progress !== undefined) {
+                            document.getElementById('progress-bar').style.width = `${task.progress}%`;
+                            document.getElementById('progress-percentage').textContent = `${task.progress}%`;
+                        }
+
+                        // 更新状态消息
+                        const statusText = {
+                            'pending': '等待中...',
+                            'processing': '正在爬取数据...',
+                            'completed': '处理完成！',
+                            'failed': '处理失败！'
+                        };
+                        document.getElementById('status-message').textContent = statusText[task.status] || task.status;
+
+                        // 显示错误信息
+                        if (task.errors && task.errors.length > 0) {
+                            const errorList = document.getElementById('error-list');
+                            errorList.innerHTML = '';
+                            task.errors.forEach(error => {
+                                const li = document.createElement('li');
+                                li.textContent = error;
+                                errorList.appendChild(li);
+                            });
+                            document.getElementById('error-messages').classList.remove('hidden');
+                        }
+
+                        // 任务完成
+                        if (task.status === 'completed' && task.results) {
+                            clearInterval(statusCheckInterval);
+                            currentResults = task.results.merged || [];
+                            renderRanking(currentResults);
+                        }
+
+                        // 任务失败
+                        if (task.status === 'failed') {
+                            clearInterval(statusCheckInterval);
+                            showError(task.error || '搜索任务失败');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('检查任务状态失败:', error);
+                    });
+            }, 1000); // 每秒检查一次
+        }
+
+        // 渲染榜单
+        function renderRanking(results) {
+            const rankingBody = document.getElementById('ranking-body');
+            rankingBody.innerHTML = '';
+
+            if (!results || results.length === 0) {
+                document.getElementById('no-results').classList.remove('hidden');
+                return;
+            }
+
+            document.getElementById('no-results').classList.add('hidden');
+            document.getElementById('ranking-section').classList.remove('hidden');
+
+            results.forEach((video, index) => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-200 hover:bg-gray-50 transition-colors';
+                row.dataset.totalViews = video.total_views;
+                row.dataset.bilibiliViews = video.platforms.bilibili ? video.platforms.bilibili.views : 0;
+                row.dataset.youtubeViews = video.platforms.youtube ? video.platforms.youtube.views : 0;
+
+                // 排名
+                const rankCell = document.createElement('td');
+                rankCell.className = 'px-4 py-4 font-medium';
+                const rank = index + 1;
+                let badgeHtml;
+                if (rank === 1) {
+                    badgeHtml = '<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-yellow-100 text-yellow-600 font-bold">1</span>';
+                } else if (rank === 2) {
+                    badgeHtml = '<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 text-gray-600 font-bold">2</span>';
+                } else if (rank === 3) {
+                    badgeHtml = '<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 text-orange-600 font-bold">3</span>';
+                } else {
+                    badgeHtml = `<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold">${rank}</span>`;
+                }
+                rankCell.innerHTML = badgeHtml;
+                row.appendChild(rankCell);
+
+                // 平台列（图标+链接）
+                const platformCell = document.createElement('td');
+                platformCell.className = 'px-4 py-4';
+                const platformBox = document.createElement('div');
+                platformBox.className = 'flex flex-col gap-1';
+                if (video.platforms.bilibili) {
+                    const bilibiliLink = document.createElement('a');
+                    bilibiliLink.href = video.platforms.bilibili.url;
+                    bilibiliLink.target = '_blank';
+                    bilibiliLink.rel = 'noopener noreferrer';
+                    bilibiliLink.className = 'flex items-center text-blue-700 hover:text-blue-800 text-sm';
+                    bilibiliLink.innerHTML = '<i class="fa fa-play-circle mr-2 text-blue-600"></i><span>B站</span>';
+                    platformBox.appendChild(bilibiliLink);
+                }
+                if (video.platforms.youtube) {
+                    const youtubeLink = document.createElement('a');
+                    youtubeLink.href = video.platforms.youtube.url;
+                    youtubeLink.target = '_blank';
+                    youtubeLink.rel = 'noopener noreferrer';
+                    youtubeLink.className = 'flex items-center text-red-700 hover:text-red-800 text-sm';
+                    youtubeLink.innerHTML = '<i class="fa fa-youtube-play mr-2 text-red-600"></i><span>YouTube</span>';
+                    platformBox.appendChild(youtubeLink);
+                }
+                if (!video.platforms.bilibili && !video.platforms.youtube) {
+                    platformBox.innerHTML = '<span class="text-gray-400">-</span>';
+                }
+                platformCell.appendChild(platformBox);
+                row.appendChild(platformCell);
+
+                // 标题
+                const titleCell = document.createElement('td');
+                titleCell.className = 'px-4 py-4 overflow-hidden';
+                
+                const titleContainer = document.createElement('div');
+                titleContainer.className = 'flex items-start gap-2';
+                
+                const titleContent = document.createElement('div');
+                titleContent.className = 'flex flex-col';
+                
+                const title = document.createElement('a');
+                title.href = getMainUrl(video);
+                title.target = '_blank';
+                title.rel = 'noopener noreferrer';
+                title.className = 'font-medium text-gray-800 hover:text-primary transition-colors line-clamp-2';
+                title.textContent = video.title;
+                titleContent.appendChild(title);
+                
+                titleContainer.appendChild(titleContent);
+                titleCell.appendChild(titleContainer);
+                row.appendChild(titleCell);
+
+                // B站播放量
+                const bilibiliCell = document.createElement('td');
+                bilibiliCell.className = 'px-4 py-4 text-right';
+                if (video.platforms.bilibili) {
+                    bilibiliCell.innerHTML = `<span class="font-medium text-blue-600">${video.platforms.bilibili.formatted_views}</span>`;
+                } else {
+                    bilibiliCell.innerHTML = '<span class="text-gray-400">-</span>';
+                }
+                row.appendChild(bilibiliCell);
+
+                // YouTube播放量
+                const youtubeCell = document.createElement('td');
+                youtubeCell.className = 'px-4 py-4 text-right w-40';
+                if (video.platforms.youtube) {
+                    youtubeCell.innerHTML = `<span class="font-medium text-red-600">${video.platforms.youtube.formatted_views}</span>`;
+                } else {
+                    youtubeCell.innerHTML = '<span class="text-gray-400">-</span>';
+                }
+                row.appendChild(youtubeCell);
+
+                // 总播放量
+                const totalCell = document.createElement('td');
+                totalCell.className = 'px-4 py-4 text-right';
+                totalCell.innerHTML = `
+                    <div class="font-bold text-lg text-gray-800">${video.formatted_total}</div>
+                    <div class="text-xs text-gray-500">${formatLargeNumber(video.total_views)}次播放</div>
+                `;
+                row.appendChild(totalCell);
+
+                rankingBody.appendChild(row);
+            });
+        }
+
+        // 获取主要链接
+        function getMainUrl(video) {
+            if (video.platforms.bilibili) {
+                return video.platforms.bilibili.url;
+            }
+            if (video.platforms.youtube) {
+                return video.platforms.youtube.url;
+            }
+            return '#';
+        }
+
+        // 格式化大数字
+        function formatLargeNumber(num) {
+            if (num >= 100000000) {
+                return (num / 100000000).toFixed(1) + '亿';
+            } else if (num >= 10000) {
+                return (num / 10000).toFixed(1) + '万';
+            }
+            return num.toString();
+        }
+
+        // 排序表格
+        function sortTable() {
+            const sortBy = document.getElementById('sort-select').value;
+            const tbody = document.getElementById('ranking-body');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            rows.sort((a, b) => {
+                let aVal = parseInt(a.dataset[`${sortBy}Views`]) || 0;
+                let bVal = parseInt(b.dataset[`${sortBy}Views`]) || 0;
+                return bVal - aVal; // 降序排列
+            });
+
+            // 重新添加行并更新排名
+            rows.forEach((row, index) => {
+                tbody.appendChild(row);
+                const rankCell = row.querySelector('td:first-child');
+                const rank = index + 1;
+                let badgeHtml;
+                if (rank === 1) {
+                    badgeHtml = '<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-yellow-100 text-yellow-600 font-bold">🥇</span>';
+                } else if (rank === 2) {
+                    badgeHtml = '<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 text-gray-600 font-bold">🥈</span>';
+                } else if (rank === 3) {
+                    badgeHtml = '<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 text-orange-600 font-bold">🥉</span>';
+                } else {
+                    badgeHtml = `<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold">${rank}</span>`;
+                }
+                rankCell.innerHTML = badgeHtml;
+            });
+        }
+
+        // 显示错误
+        function showError(message) {
+            document.getElementById('status-message').textContent = '搜索失败';
+            const errorList = document.getElementById('error-list');
+            errorList.innerHTML = '';
+            const li = document.createElement('li');
+            li.textContent = message;
+            errorList.appendChild(li);
+            document.getElementById('error-messages').classList.remove('hidden');
+        }
+
+        // 显示加载覆盖层
+        function showLoading(text = '正在处理数据...') {
+            document.getElementById('loading-text').textContent = text;
+            document.getElementById('loading-overlay').classList.remove('hidden');
+        }
+
+        // 隐藏加载覆盖层
+        function hideLoading() {
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
+
+        // 监听回车键
+        document.getElementById('keyword').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        // 页面加载时获取支持的平台
+        window.addEventListener('DOMContentLoaded', function() {
+            fetch('/platforms')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('支持的平台:', data.platforms);
+                })
+                .catch(error => {
+                    console.error('获取平台列表失败:', error);
+                });
+        });
+    </script>
+</body>
+</html>
