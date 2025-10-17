@@ -16,12 +16,10 @@
 
 ## 目录结构
 ```
-Rank/
-├── app.py            # Flask后端（主运行入口）
-├── index.html        # 前端页面（单文件）
-├── requirements.txt  # 依赖列表
-├── README.md         # 本说明文档
-├── v1/ v2/ v2.1/     # 历史版本（保留）
+app.py            # Flask后端（主运行入口）
+index.html        # 前端页面（单文件）
+requirements.txt  # 依赖列表
+README.md         # 本说明文档
 ```
 
 ## 环境依赖
