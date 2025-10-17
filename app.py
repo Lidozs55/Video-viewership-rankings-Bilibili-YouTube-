@@ -60,7 +60,7 @@ VIDEO_PAGE_HEADERS = {
 }
 
 # YouTube API配置
-YOUTUBE_API_KEY = "AIzaSyCKlCFugkLjT6fk6J2IgldtJmvBhOgiUmc"
+YOUTUBE_API_KEY = ""
 YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3/search"
 YOUTUBE_VIDEO_DETAIL_URL = "https://www.googleapis.com/youtube/v3/videos"
 
